@@ -9,8 +9,6 @@ import linecache
 import json
 from termcolor import colored
 from datetime import date
-import requests
-from bs4 import BeautifulSoup
 
 #Version Info:
 version = (linecache.getline(linecache.sys.argv[0],1))
@@ -30,7 +28,267 @@ linecache.clearcache()
 #(Default) JSON file creation or verification:
 json_path = "/data/data/com.termux/files/home/default.json"
 
-# ... [keep all your existing code until the audio function] ...
+
+if os.path.isfile(json_path):
+    pass
+else:
+    t_date = date.today().strftime("%d/%m/%Y")
+    jsonnew = {
+        "default" : [
+            {
+                "code" : "",
+                "codec" : "",
+                "last_upgrade": t_date,
+                "incognito": "off" 
+            }],
+        "1" : [
+            {
+                "height" : "2160",
+                "res" : "4k"
+            }],
+        "2" : [
+            {               
+                "height" : "1440",
+                "res" : "2k"
+            }],
+        "3" : [
+            {
+                "height" : "1080",
+                "res" : "1080p"
+            }],
+        "4" : [
+            {
+                "height" : "720",
+                "res" : "720p"
+            }],
+        "5" : [
+            {
+                "height" : "480",
+                "res" : "480p"
+            }],
+        "6" : [
+            {
+                "height" : "360",
+                "res" : "360p"
+            }],
+        "7" : [
+            {
+                "height" : "240",
+                "res" : "240p"
+            }],
+        "8" : [
+            {
+                "height" : "144",
+                "res" : "144p"
+            }]
+    }
+    file = json.dumps(jsonnew, indent=4)
+    with open(json_path, "w") as out:
+        out.write(file)
+    out.close
+
+#Incognito status:
+with open(json_path, 'r') as file:
+        data = json.load(file)
+        state = (data["default"][0]["incognito"]).capitalize()
+        file.close()
+print(f"Incognito Mode: {state}\n") 
+
+#Update news:
+print("(Changelog)Whats new...!\n")
+print("   >(Main)Fatal Bugs fixed\n   >(Feature)New Utility mode\n   >(Utility)Open Termux app and type 'tools' to open Termux downloader utilities\n   >(Utilities)New Incognito Mode\n   >(Engine)Removed Unwanted Binaries and Maintenance\n")
+
+#(Master) Verification of dependencies
+def dependency():
+    try:
+        import ffmpeg
+    except ModuleNotFoundError:
+        os.system('pip install ffmpeg')
+    try:
+        import yt_dlp
+    except ModuleNotFoundError():
+        os.system('pip install --no-deps -U yt-dlp')
+
+dependency()
+
+#(Master) Automated link grabbing from Termux url Opener
+link = sys.argv[1]
+
+#Temp file:
+temp_loc = "/data/data/com.termux/files/home/temp.txt"
+    #Purging previous temp file:
+if os.path.isfile(temp_loc):
+    os.remove(temp_loc)
+else:
+    pass
+
+    #Creating new temp file:
+with open(temp_loc,"x") as temp:
+    temp.write(link)
+    temp.close()
+
+#General Path
+genPath = "/storage/emulated/0/"
+
+#(Master) History:
+def history(title, site):
+    history = "/data/data/com.termux/files/home/history.txt"
+    Title0 = title.replace('"',"`")
+    Title = Title0.replace("'", "`")
+    with open(history, 'a+') as file:
+        with open(history, 'r') as fp:
+            line = len(fp.readlines())
+            fp.close()
+        x = (int(line) + int("1"))
+        No = str(x)
+        set = {"SNo": No , "Name": Title[:50], "URL": link, "Site": site}
+        file.write(json.dumps(set)+str("\n"))
+    file.close()
+    os.remove(temp_loc)
+
+#(YT-DLP) Downloader:
+def downloader(opt, site):
+    import yt_dlp
+    with yt_dlp.YoutubeDL(opt) as yt:
+        info = yt.extract_info(link, download=True)
+        title = info.get('title', None)
+        with open(json_path,'r') as file:
+            data = json.load(file)
+            state = data["default"][0]["incognito"]
+        if state == "off":
+            history(title, site)
+        else:
+            os.remove(temp_loc)
+            exit()
+
+#(Youtube) Video
+def video(mode):
+    if "playlist" in link:
+        path = genPath+'Termux_Downloader/Youtube/%(playlist)s/%(title)s.%(ext)s'
+        thumb = bool(True)
+    else:
+        path = genPath+'Termux_Downloader/Youtube/%(title)s.%(ext)s'
+        thumb = bool(True)
+    if mode == "Youtube":
+        print("Downloading video from YouTube:\n")
+        #Default creation, import and modification segment:
+        with open(json_path, "r") as defaultFile:
+            data  = json.load(defaultFile)
+
+            if data["default"][0]["code"] == "":
+                print('Enter the respective code for Required Resolution:')
+                print('[code] - [Resolution]')
+                print('1 - 4k')
+                print('2 - 2k')
+                print('3 - 1080p')
+                print('4 - 720p')
+                print("5 - 480p")
+                print('6 - 360p')
+                print('7 - 240p')
+                print('8 - 144p')
+
+                i = input('Resolution Code: ')
+                print("\n")  
+                data["default"][0]["code"] = i
+                
+                with open(json_path, "w") as defaultFile:
+                    json.dump(data, defaultFile)
+                defaultFile.close
+
+                with open(json_path, "r") as default:
+                    data = json.load(default)
+                    code = data["default"][0]["code"]
+                    j = data[code][0]["height"]
+                    k = data[code][0]["res"]
+                default.close
+                
+            else:
+                with open(json_path, "r") as default:
+                    data = json.load(default)
+                    code = data["default"][0]["code"]
+                    k = data[code][0]["res"]
+                    choice = input("Default resolution is " +k+ ". If you want to download in different resolution type (y) or skip:" )
+                    print("\n")
+                    if choice =="y":
+                        print('Enter the respective code for Required Resolution:')
+                        print('[code] - [Resolution]')
+                        print('1 - 4k')
+                        print('2 - 2k')
+                        print('3 - 1080p')
+                        print('4 - 720p')
+                        print("5 - 480p")
+                        print('6 - 360p')
+                        print('7 - 240p')
+                        print('8 - 144p')
+
+                        i = input('Resolution Code: ')
+                        print("\n")  
+                        data["default"][0]["code"] = i
+                    
+                        with open(json_path, "w") as defaultFile:
+                            json.dump(data, defaultFile)
+                        defaultFile.close
+
+                        with open(json_path, "r") as default:
+                            data = json.load(default)
+                            code = data["default"][0]["code"]
+                            j = data[code][0]["height"]
+                            k = data[code][0]["res"]
+                        default.close
+                
+                    else:
+                        j = data[code][0]["height"]
+                        k = data[code][0]["res"]
+                default.close
+
+        print('Note: The video will download in '+k+' Resolution if youtube has such resolution. If not it will download the Best of resolution available in URL.\n')
+        format = 'bestvideo[height<='+j+']+bestaudio[ext=m4a]/best[height<='+j+']/best[ext=m4a]'
+    elif mode == "best":
+        print("Downloading best one from YouTube:\n")
+        format = 'best'
+    elif mode == "advanced":
+        print("Downloading from YouTube - Advanced mode:\n")
+        os.system("yt-dlp -F " +link)
+        if "youtube" in link or "youtu.be" in link:
+            vid = input('Video id: \n')
+            aid = input('Audio id: \n')
+            format = str(vid)+" + "+str(aid)
+        else:
+            format = input("Enter the format code from above list:")
+            print("\n")
+    else:
+        linkDistributor()
+
+    if input("Do you need subtitle? If yes, type 'y' or skip! :") == "y":
+        choice = bool(True)
+    else:
+        choice = bool(False)
+    print("\n")
+    opt = {
+                'external_downloader' : 'aria2c',
+                'outtmpl' : path,
+                'writesubtitles' : choice,
+                'writeautomaticsub' : choice,
+                'merge_output_format' : 'mp4',
+                'writethumbnail' : thumb,
+                'format' : format,
+                'postprocessors' :
+                                    [
+                                        {
+                                            'key' : 'FFmpegEmbedSubtitle',
+                                            'already_have_subtitle' : False
+                                        },
+                                        {
+                                                'key' : 'FFmpegMetadata',
+                                                'add_metadata' : True
+                                        },
+                                        {
+                                                'key' : 'EmbedThumbnail',
+                                                'already_have_thumbnail' : False
+                                        }
+                                    ]
+            }   
+    downloader(opt, site = mode) 
 
 #(Youtube) Audio
 def audio(dir):
@@ -120,129 +378,122 @@ def audio(dir):
         site = "Youtube Music"
     else:
         site = "Youtube"
-    
-    # Download the audio first
-    downloader(opt, site=site)
-    
-    # Now try to download lyrics
-    try:
-        download_lyrics(link, path)
-    except Exception as e:
-        print(f"Could not download lyrics: {str(e)}")
+    downloader(opt, site= site) 
 
-def download_lyrics(video_url, save_path):
-    """Function to download lyrics for a YouTube video"""
-    import yt_dlp
-    
-    # Get video info to extract title
-    ydl_opts = {
-        'quiet': True,
-        'skip_download': True,
-    }
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(video_url, download=False)
-        video_title = info.get('title', '')
-    
-    if not video_title:
-        print("Could not get video title for lyrics search")
-        return
-    
-    print(f"\nSearching lyrics for: {video_title}")
-    
-    # Try to find lyrics from various sources
-    lyrics = None
-    
-    # Try Musixmatch
-    try:
-        lyrics = get_musixmatch_lyrics(video_title)
-    except:
-        pass
-    
-    # Try Genius as fallback
-    if not lyrics:
-        try:
-            lyrics = get_genius_lyrics(video_title)
-        except:
-            pass
-    
-    if lyrics:
-        # Save as .lrc file
-        lrc_filename = os.path.join(save_path, f"{video_title}.lrc")
-        with open(lrc_filename, 'w', encoding='utf-8') as f:
-            f.write(lyrics)
-        print(f"Lyrics saved as: {lrc_filename}")
+#(Others) Social Media and download supported video steaming sites:
+def others():
+    if "www" in link:
+        l1 = link.split("www.")
     else:
-        print("Could not find lyrics for this track")
+        l1 = link.split("://")
+    l2 = l1[1].split(".")
+    dir_name = l2[0].capitalize()
+    print("Downloading from " +colored(dir_name,'magenta'))
+    print("\n")
+    path = genPath+'Termux_Downloader/'+ dir_name +'/'
+    if os.path.isdir(path):
+        pass
+    else:
+        os.mkdir(path)
 
-def get_musixmatch_lyrics(song_title):
-    """Try to get lyrics from Musixmatch"""
-    base_url = "https://www.musixmatch.com/search/"
-    search_url = base_url + song_title.replace(' ', '%20')
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    response = requests.get(search_url, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    
-    # Find first result link
-    first_result = soup.find('a', {'class': 'title'})
-    if not first_result:
-        return None
-    
-    lyrics_url = "https://www.musixmatch.com" + first_result['href']
-    
-    # Get lyrics page
-    lyrics_response = requests.get(lyrics_url, headers=headers)
-    lyrics_soup = BeautifulSoup(lyrics_response.text, 'html.parser')
-    
-    # Extract lyrics
-    lyrics_div = lyrics_soup.find('div', {'class': 'mxm-lyrics'})
-    if not lyrics_div:
-        return None
-    
-    lyrics = ""
-    for verse in lyrics_div.find_all('span', {'class': 'lyrics__content__ok'}):
-        lyrics += verse.get_text() + "\n"
-    
-    return lyrics.strip()
+    opt = {                
+                    'outtmpl': path + "%(title).50s.%(ext)s",
+                    'external_downloader': 'aria2c',
+                    'writesubtitles' : True,
+                    'writeautomaticsub' : True, 
+                }
+    try: #Try the video is downloadable from the site           
+        downloader(opt,site = dir_name)   
+    except: #Else delete the folder created to download if only site is not downloadable
+        os.rmdir(path)
 
-def get_genius_lyrics(song_title):
-    """Try to get lyrics from Genius"""
-    base_url = "https://genius.com/api/search/multi?q="
-    search_url = base_url + song_title.replace(' ', '%20')
-    
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-    }
-    
-    response = requests.get(search_url, headers=headers)
-    data = response.json()
-    
-    # Find first song result
-    song_hit = None
-    for section in data['response']['sections']:
-        if section['type'] == 'song':
-            if section['hits']:
-                song_hit = section['hits'][0]['result']
-                break
-    
-    if not song_hit:
-        return None
-    
-    lyrics_url = song_hit['url']
-    
-    # Get lyrics page
-    lyrics_response = requests.get(lyrics_url, headers=headers)
-    lyrics_soup = BeautifulSoup(lyrics_response.text, 'html.parser')
-    
-    # Extract lyrics
-    lyrics_div = lyrics_soup.find('div', {'class': 'lyrics'})
-    if not lyrics_div:
-        return None
-    
-    return lyrics_div.get_text().strip()
+#(General Downloader)From FTP links and Torrent:
+def genDown():
+    if "magnet" in link:
+        print("Downloading Torrent file from Magnet link:\n")
+        path = genPath+"Termux_Downloader/Torrents/"
+    else:
+        print("Downloading from FTP link:")
+        path = genPath+"Termux_Downloader/Downloads/"
 
-# ... [keep all the remaining code unchanged] ...
+    code = "aria2c -d '"+ path + "' '"+ link + "' --file-allocation=none"
+    if os.path.isdir(path):
+        os.system(code)
+    else:
+        os.mkdir(path)
+        os.system(code)
+
+#(Drive) Google Drive:
+def drive():
+    id1 = link.replace("https://drive.google.com/file/d/", "")
+    split = id1.split("/", 1)
+    id = split[0]
+    path = genPath+"Termux_Downloader/Gdrive/"
+    code = "gdown -O '" + path + "' --id '" + id + "'"
+    exist = os.path.isdir(path)
+    if exist:
+        os.system(code)
+    else:
+        os.mkdir(path)
+        os.system(code)
+  
+#(Master) Link Assortment (Distributor)
+def linkDistributor():
+    if "drive" in link:
+        drive()
+    elif "magnet" in link:
+        genDown()
+    elif "music" in link:
+        audio(dir= "YTmusic")
+    elif "youtube" in link or "youtu.be" in link:
+        path = genPath + 'Termux_Downloader/Youtube/'
+        if os.path.isdir(path):
+            pass
+        else:
+            os.mkdir(path)
+        print('Enter \n*(v) for Video \n*(a) for audio \n*(m) for advanced \n*(b) for best')
+        T = input('v or a or m or b: ')
+        print("\n") 
+        if T=="v":
+            video(mode= "Youtube")
+        elif T=="m":
+            video(mode = "advanced")
+        elif T=="a":
+            print("Downloading Audio track from YouTube:")
+            audio(dir= "Youtube")
+        elif T=="b":
+            video(mode= "best")
+        else:
+            linkDistributor()  
+    else:
+        try:
+            others()
+        except:
+            genDown()
+
+#(Master) General Directory in Internal Storage
+def masterDirectory():
+    path = genPath + "Termux_Downloader/"
+    exist = os.path.isdir(path)
+    if exist:
+        #Empty directory scanner and remover
+        def list():
+            empty_Dir = []
+            for root, dirs, files in os.walk(path):
+                if not len(dirs) and not len(files):
+                    empty_Dir.append(root)
+            
+            if not len(empty_Dir) == int("0"):
+                for x in empty_Dir:
+                    os.rmdir(x + "/")
+                empty_Dir.clear()
+                list()
+            else:
+                pass
+        list()      
+        linkDistributor()
+    else:
+        os.mkdir(path)
+        linkDistributor()
+
+masterDirectory()
