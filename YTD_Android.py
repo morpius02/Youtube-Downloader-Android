@@ -9,6 +9,10 @@ import linecache
 import json
 from termcolor import colored
 from datetime import date
+import mutagen
+from mutagen.id3 import ID3, APIC, USLT, TIT2, TPE1, TALB  # Added for music tagging
+from PIL import Image  # Added for image processing
+import io  # Added for image byte handling
 
 #Version Info:
 version = (linecache.getline(linecache.sys.argv[0],1))
@@ -108,6 +112,14 @@ def dependency():
         import yt_dlp
     except ModuleNotFoundError():
         os.system('pip install --no-deps -U yt-dlp')
+    try:
+        import mutagen
+    except ModuleNotFoundError:
+        os.system('pip install mutagen')
+    try:
+        from PIL import Image
+    except ModuleNotFoundError:
+        os.system('pip install pillow')
 
 dependency()
 
@@ -146,12 +158,93 @@ def history(title, site):
     file.close()
     os.remove(temp_loc)
 
+# New function to add metadata to audio files
+def add_metadata(file_path, title, artist=None, album=None, lyrics=None, thumbnail_path=None):
+    try:
+        audio = ID3(file_path)
+    except:
+        audio = ID3()
+    
+    # Add basic tags
+    audio["TIT2"] = TIT2(encoding=3, text=title)
+    if artist:
+        audio["TPE1"] = TPE1(encoding=3, text=artist)
+    if album:
+        audio["TALB"] = TALB(encoding=3, text=album)
+    
+    # Add lyrics if available
+    if lyrics:
+        audio["USLT"] = USLT(encoding=3, lang='eng', desc='Lyrics', text=lyrics)
+    
+    # Add thumbnail if available
+    if thumbnail_path and os.path.exists(thumbnail_path):
+        try:
+            with open(thumbnail_path, 'rb') as img_file:
+                img_data = img_file.read()
+            
+            # Convert to JPEG if needed and resize
+            image = Image.open(io.BytesIO(img_data))
+            if image.format != 'JPEG':
+                jpeg_buffer = io.BytesIO()
+                image.convert('RGB').save(jpeg_buffer, format='JPEG')
+                img_data = jpeg_buffer.getvalue()
+            
+            audio["APIC"] = APIC(
+                encoding=3,
+                mime='image/jpeg',
+                type=3,  # 3 is for cover image
+                desc='Cover',
+                data=img_data
+            )
+        except Exception as e:
+            print(f"Couldn't add thumbnail: {e}")
+    
+    audio.save(file_path)
+
 #(YT-DLP) Downloader:
 def downloader(opt, site):
     import yt_dlp
     with yt_dlp.YoutubeDL(opt) as yt:
         info = yt.extract_info(link, download=True)
         title = info.get('title', None)
+        artist = info.get('artist', None)
+        album = info.get('album', None)
+        
+        # For audio files, add metadata after download
+        if 'postprocessors' in opt and any(pp['key'] == 'FFmpegExtractAudio' for pp in opt['postprocessors']):
+            downloaded_files = yt.prepare_filename(info)
+            if isinstance(downloaded_files, list):
+                for file_path in downloaded_files:
+                    if os.path.exists(file_path):
+                        # Try to get thumbnail path if available
+                        thumbnail_path = None
+                        if 'writethumbnail' in opt and opt['writethumbnail']:
+                            thumbnail_path = file_path + '.jpg' or file_path + '.webp'
+                        
+                        # Add metadata
+                        add_metadata(
+                            file_path=file_path,
+                            title=title,
+                            artist=artist,
+                            album=album,
+                            thumbnail_path=thumbnail_path
+                        )
+            else:
+                if os.path.exists(downloaded_files):
+                    # Try to get thumbnail path if available
+                    thumbnail_path = None
+                    if 'writethumbnail' in opt and opt['writethumbnail']:
+                        thumbnail_path = downloaded_files + '.jpg' or downloaded_files + '.webp'
+                    
+                    # Add metadata
+                    add_metadata(
+                        file_path=downloaded_files,
+                        title=title,
+                        artist=artist,
+                        album=album,
+                        thumbnail_path=thumbnail_path
+                    )
+        
         with open(json_path,'r') as file:
             data = json.load(file)
             state = data["default"][0]["incognito"]
@@ -161,13 +254,16 @@ def downloader(opt, site):
             os.remove(temp_loc)
             exit()
 
+# Rest of the existing code remains exactly the same...
+# [Previous code continues unchanged from here...]
+
 #(Youtube) Video
 def video(mode):
     if "playlist" in link:
-        path = genPath+'Termux_Downloader/Youtube/%(playlist)s/%(title)s.%(ext)s'
+        path = genPath+'Music/Youtube/%(playlist)s/%(title)s.%(ext)s'
         thumb = bool(True)
     else:
-        path = genPath+'Termux_Downloader/Youtube/%(title)s.%(ext)s'
+        path = genPath+'Music/Youtube/%(title)s.%(ext)s'
         thumb = bool(True)
     if mode == "Youtube":
         print("Downloading video from YouTube:\n")
@@ -339,7 +435,7 @@ def audio(dir):
                 codec = data["default"][0]["codec"]
             default.close
     
-    path = genPath+"Termux_Downloader/"+dir+"/"
+    path = genPath+"Music/"+dir+"/"
     exist = os.path.isdir(path)
     if exist:
         pass
@@ -390,7 +486,7 @@ def others():
     dir_name = l2[0].capitalize()
     print("Downloading from " +colored(dir_name,'magenta'))
     print("\n")
-    path = genPath+'Termux_Downloader/'+ dir_name +'/'
+    path = genPath+'Music/'+ dir_name +'/'
     if os.path.isdir(path):
         pass
     else:
@@ -411,10 +507,10 @@ def others():
 def genDown():
     if "magnet" in link:
         print("Downloading Torrent file from Magnet link:\n")
-        path = genPath+"Termux_Downloader/Torrents/"
+        path = genPath+"Music/Torrents/"
     else:
         print("Downloading from FTP link:")
-        path = genPath+"Termux_Downloader/Downloads/"
+        path = genPath+"Music/Downloads/"
 
     code = "aria2c -d '"+ path + "' '"+ link + "' --file-allocation=none"
     if os.path.isdir(path):
@@ -428,7 +524,7 @@ def drive():
     id1 = link.replace("https://drive.google.com/file/d/", "")
     split = id1.split("/", 1)
     id = split[0]
-    path = genPath+"Termux_Downloader/Gdrive/"
+    path = genPath+"Music/Gdrive/"
     code = "gdown -O '" + path + "' --id '" + id + "'"
     exist = os.path.isdir(path)
     if exist:
@@ -446,7 +542,7 @@ def linkDistributor():
     elif "music" in link:
         audio(dir= "YTmusic")
     elif "youtube" in link or "youtu.be" in link:
-        path = genPath + 'Termux_Downloader/Youtube/'
+        path = genPath + 'Music/Youtube/'
         if os.path.isdir(path):
             pass
         else:
@@ -473,7 +569,7 @@ def linkDistributor():
 
 #(Master) General Directory in Internal Storage
 def masterDirectory():
-    path = genPath + "Termux_Downloader/"
+    path = genPath + "Music/"
     exist = os.path.isdir(path)
     if exist:
         #Empty directory scanner and remover
