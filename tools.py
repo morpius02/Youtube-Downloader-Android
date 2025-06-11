@@ -1,178 +1,241 @@
 #!/data/data/com.termux/files/usr/bin/env python3
 import os
-from termcolor import colored
-print("\n")
-print(colored("TERMUX DOWNLOADER UTILITIES",'red')+"\n")
-
-#History Import
-def his_imp():
-    des_path = '/data/data/com.termux/files/home/history.txt'
-    imp_path = '/storage/emulated/0/Termux_Downloader/'
-    def x(imp_path):
-        for file in os.listdir(imp_path):
-            if file.lower().endswith('.txt'):
-                return True
-        return False
-    if not x(imp_path):
-         print("No History File to import available in Termux Downloader folder!!")
-         exit()
-    
-    print("\nKeep only one history Text file in Termux Downloader folder and click enter !!\n")
-    if input("") == "":
-        count = [f for f in os.listdir(imp_path) if f.endswith('.txt')]
-        if len(count) > 1:
-            exit()
-    
-    from pathlib import Path
-    imp_his_file = (list(Path(imp_path).glob("*.txt")))[0]
-    if not os.path.isfile(des_path):
-        import shutil
-        shutil.move(imp_his_file,des_path)
-        exit()
-        
-    import json
-    with open(des_path, 'r') as fp:
-        lines = len(fp.readlines())
-        fp.close()
-    num = str(int(lines)+ int("1"))
-    
-    def appender(no,title,url,site):
-        with open(des_path,'a+') as fp:
-            st = {"SNo": no , "Name": title, "URL": url, "Site":site}
-            fp.write(json.dumps(st)+str("\n"))
-            fp.close()
-            
-    with open(imp_his_file, 'r+') as f:
-         for jsonObj in f:
-             histlist = []
-             Dict = json.loads(jsonObj)
-             histlist.append(Dict)
-             histlist1 = str(histlist).replace("'",'"').replace("\\","/")
-             input_dict = json.loads(histlist1)
-             for x in input_dict:
-                 appender(no=num,title=x["Name"],url=x["URL"],site=x["Site"])
-                 num = str(int(num)+ int("1"))
-    f.close()
-    os.remove(imp_his_file)
-        
-def down():
-    link = input("Enter the Link: \n")
-    print("\n")
-    os.system("python '/data/data/com.termux/files/home/main.py' '" +link +"'")
-
 import json
-jpath = '/data/data/com.termux/files/home/default.json'
-with open(jpath, 'r') as file:
-    data = json.load(file)
-    Tstate = (data["default"][0]["incognito"]).capitalize()
-    if Tstate == "Off":
-        Twant = "On"
-    else:
-        Twant = "Off"
-    file.close()
+import sys
+from datetime import datetime, date
+from pathlib import Path
+import shutil
+from termcolor import colored
 
-print(f"Tools:\n1. Manual Link download\n\nHistory:\n2. View Download History\n3. Turn {Twant} Incognito Mode\n4. Backup History\n5. Import History\n6. Delete History\n\nTroubleshooting:\n7. Manual Upgrade\n8. Factory Reset\n\nInfo:\n9. Script Build Info\n10. Developers info\n")
-choice = input("Choice:")
+# Version information
+UTILS_VERSION = "10.2.0.0"
 print("\n")
+print(colored("TERMUX DOWNLOADER UTILITIES", 'red', attrs=['bold']))
+print(colored(f"Version: {UTILS_VERSION}\n", 'yellow'))
 
-#Manual Downloader  
-if choice == "1":
-    down()
+# Constants
+HOME_DIR = "/data/data/com.termux/files/home"
+STORAGE_DIR = "/storage/emulated/0/Termux_Downloader"
+HISTORY_FILE = f"{HOME_DIR}/history.txt"
+CONFIG_FILE = f"{HOME_DIR}/default.json"
+MAIN_SCRIPT = f"{HOME_DIR}/main.py"
 
-# View History
-elif choice == "2":
-    os.system("python '/data/data/com.termux/files/home/history.py'")
+def clear_screen():
+    os.system('clear')
 
-# Incognito Mode
-elif choice == "3":
-    import json
-    loc = '/data/data/com.termux/files/home/default.json'
+def print_header(title):
+    clear_screen()
+    print(colored(f"\n{title}", 'blue', attrs=['bold']))
+    print(colored("=" * len(title) + "\n", 'blue'))
 
-    with open(loc, 'r') as file:
-        data = json.load(file)
-        state = (data["default"][0]["incognito"]).capitalize()
-    if state == "Off":
-        want = "On"
+def import_history():
+    """Import history from storage to Termux"""
+    print_header("HISTORY IMPORT")
+    
+    # Check for history files in storage
+    txt_files = list(Path(STORAGE_DIR).glob("*.txt"))
+    if not txt_files:
+        print(colored("No history files found in Termux_Downloader folder!", 'red'))
+        return
+    
+    print(colored("Keep only one history text file in Termux_Downloader folder", 'yellow'))
+    input(colored("Press Enter to continue...", 'grey'))
+    
+    if len(txt_files) > 1:
+        print(colored("Multiple history files found. Please keep only one.", 'red'))
+        return
+    
+    source_file = str(txt_files[0])
+    
+    # If no existing history, just move the file
+    if not os.path.exists(HISTORY_FILE):
+        shutil.move(source_file, HISTORY_FILE)
+        print(colored("History imported successfully!", 'green'))
+        return
+    
+    # Merge histories if both exist
+    print(colored("Merging with existing history...", 'cyan'))
+    
+    with open(HISTORY_FILE, 'r') as f:
+        existing_lines = len(f.readlines())
+    
+    new_entries = 0
+    with open(source_file, 'r') as src, open(HISTORY_FILE, 'a') as dest:
+        for line in src:
+            try:
+                entry = json.loads(line)
+                entry["SNo"] = str(existing_lines + new_entries + 1)
+                dest.write(json.dumps(entry) + "\n")
+                new_entries += 1
+            except json.JSONDecodeError:
+                continue
+    
+    os.remove(source_file)
+    print(colored(f"Successfully merged {new_entries} history entries!", 'green'))
+
+def manual_download():
+    """Manual download from entered URL"""
+    print_header("MANUAL DOWNLOAD")
+    link = input(colored("Enter the URL: \n", 'yellow'))
+    if link:
+        os.system(f'python "{MAIN_SCRIPT}" "{link}"')
+
+def toggle_incognito():
+    """Toggle incognito mode in config"""
+    with open(CONFIG_FILE, 'r+') as f:
+        config = json.load(f)
+        current_state = config["default"][0]["incognito"]
+        new_state = "off" if current_state == "on" else "on"
+        config["default"][0]["incognito"] = new_state
+        f.seek(0)
+        json.dump(config, f, indent=4)
+        f.truncate()
+    
+    print(colored(f"\nIncognito Mode Turned: {new_state.upper()}", 'green'))
+
+def backup_history():
+    """Backup history to storage"""
+    print_header("HISTORY BACKUP")
+    
+    if not os.path.exists(HISTORY_FILE):
+        print(colored("No history file available to backup!", 'red'))
+        return
+    
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"{STORAGE_DIR}/history_backup_{timestamp}.txt"
+    
+    shutil.copy2(HISTORY_FILE, backup_path)
+    print(colored(f"History backup created at:\n{backup_path}", 'green'))
+
+def delete_history():
+    """Delete history file with confirmation"""
+    print_header("DELETE HISTORY")
+    
+    if not os.path.exists(HISTORY_FILE):
+        print(colored("No history file available to delete!", 'red'))
+        return
+    
+    confirm = input(colored("Type 'YES' to confirm deletion: ", 'red'))
+    if confirm == "YES":
+        os.remove(HISTORY_FILE)
+        print(colored("History file deleted!", 'green'))
     else:
-        want = "Off"
+        print(colored("Deletion cancelled.", 'yellow'))
 
-    data["default"][0]["incognito"] = want.lower()
-    with open(loc,'w') as file:
-        json.dump(data, file,indent=4)
-        file.close()
-    print(f'Incognito Mode Turned: {want}')
-
-# Backup History
-elif choice == "4":
-    if not os.path.isfile('/data/data/com.termux/files/home/history.txt'):
-        print("There is no history file available to backup. Exiting....!\n\n")
-        exit()
-    from datetime import datetime
-    dest = '/storage/emulated/0/Termux_Downloader/history_backup_'+datetime.now().strftime("%d%m%y_%H%M%S")+".txt'"
-    os.system("cp '/data/data/com.termux/files/home/history.txt' '"+dest)
-    print("History Backup Done !!\nLocation: "+dest.replace("/storage/emulated/0/","Internal Storage > /")+"\n")
-
-# Import History
-elif choice == "5":
-    his_imp()
+def show_script_info():
+    """Display script version and information"""
+    print_header("SCRIPT INFORMATION")
     
-#Delete History
-elif choice == "6":
-    if not os.path.isfile('/data/data/com.termux/files/home/history.txt'):
-        print("There is no history file available to Delete. Exiting....!\n\n")
-        exit()
-    if input ("Type 'YES' to confirm delete: ")== "YES":
-        os.remove('/data/data/com.termux/files/home/history.txt')
+    with open(MAIN_SCRIPT, 'r') as f:
+        lines = [f.readline().strip() for _ in range(3)]
+    
+    with open(CONFIG_FILE, 'r') as f:
+        config = json.load(f)
+        last_upgrade = config["default"][0]["last_upgrade"]
+        inc_state = config["default"][0]["incognito"].capitalize()
+    
+    today = date.today().strftime("%d/%m/%Y")
+    days_left = 28 - (datetime.strptime(today, "%d/%m/%Y") - 
+                     datetime.strptime(last_upgrade, "%d/%m/%Y")).days
+    
+    info = [
+        ("Version", lines[0].replace("#Version ", "")),
+        ("Engine", lines[1].replace("#Engine ", "")),
+        ("Build", lines[2].replace("#", "")),
+        ("Last Upgrade", last_upgrade),
+        ("Auto-upgrade In", f"{days_left} days"),
+        ("Incognito Mode", inc_state)
+    ]
+    
+    for label, value in info:
+        print(colored(f"{label:<15}", 'cyan') + colored(value, 'white'))
+
+def show_dev_info():
+    """Show developer information and links"""
+    print_header("DEVELOPER INFORMATION")
+    
+    options = [
+        ("1", "Official Termux GitHub", "https://github.com/termux/termux-app"),
+        ("2", "Termux Releases", "https://github.com/termux/termux-app/releases"),
+        ("3", "Script GitHub", "https://github.com/DrDelin/Youtube-Downloader-Android"),
+        ("4", "Report Issues", "https://github.com/DrDelin/Youtube-Downloader-Android/issues")
+    ]
+    
+    for num, desc, _ in options:
+        print(colored(f"{num}. {desc}", 'yellow'))
+    
+    choice = input("\nChoose an option (or Enter to exit): ")
+    for num, _, url in options:
+        if choice == num:
+            os.system(f"termux-open-url {url}")
+            return
+
+def main_menu():
+    """Display main menu and handle choices"""
+    with open(CONFIG_FILE, 'r') as f:
+        config = json.load(f)
+        inc_state = config["default"][0]["incognito"]
+        toggle_text = "On" if inc_state == "off" else "Off"
+    
+    menu = [
+        ("Tools", [
+            ("1", "Manual Link Download")
+        ]),
+        ("History", [
+            ("2", "View Download History"),
+            ("3", f"Turn {toggle_text} Incognito Mode"),
+            ("4", "Backup History"),
+            ("5", "Import History"),
+            ("6", "Delete History")
+        ]),
+        ("Troubleshooting", [
+            ("7", "Manual Upgrade"),
+            ("8", "Factory Reset")
+        ]),
+        ("Info", [
+            ("9", "Script Build Info"),
+            ("10", "Developer Info")
+        ])
+    ]
+    
+    clear_screen()
+    print(colored("\nMAIN MENU\n", 'blue', attrs=['bold']))
+    
+    for section, items in menu:
+        print(colored(section, 'green'))
+        for num, desc in items:
+            print(colored(f"  {num}. {desc}", 'yellow'))
+        print()
+    
+    choice = input(colored("Enter your choice: ", 'cyan'))
+    
+    actions = {
+        '1': manual_download,
+        '2': lambda: os.system(f'python "{HOME_DIR}/history.py"'),
+        '3': toggle_incognito,
+        '4': backup_history,
+        '5': import_history,
+        '6': delete_history,
+        '7': lambda: os.system("sh refresh.sh"),
+        '8': lambda: os.system("sh refresh.sh"),
+        '9': show_script_info,
+        '10': show_dev_info
+    }
+    
+    if choice in actions:
+        actions[choice]()
     else:
-        exit()
+        print(colored("Invalid choice. Exiting...", 'red'))
     
-#Factory Default Reset            
-elif choice == "7" or choice == "8":
-    os.system("sh refresh.sh")
-    
-#Script Info
-elif choice == "9":
-    import json
-    from datetime import date , datetime
-    sc_path = '/data/data/com.termux/files/home/main.py'
-    j_path = '/data/data/com.termux/files/home/default.json'
-    linex = []
-    with open(sc_path,"r") as fy:
-        for _ in range(3):
-            line = fy.readline().strip()
-            linex.append(line)
-        fy.close()
-    with open(j_path,"r") as j:
-        data = json.load(j)
-        date_old = data["default"][0]["last_upgrade"]
-        inc_state = (data["default"][0]["incognito"]).capitalize()
-        j.close()
-    
-    date_new = date.today().strftime("%d/%m/%Y")
-    days = str(int("28") - int((datetime.strptime(date_new,"%d/%m/%Y") - datetime.strptime(date_old,"%d/%m/%Y")).days))
-    
-    print("Version: "+ linex[0].replace("#Version ","") )
-    print("Engine: "+ linex[1].replace("#Engine ",""))
-    print("Build: " +linex[2].replace("#",""))
-    print("Script previously upgraded on: "+ date_old)
-    print(f'Script auto-upgrades in {days} days')
-    print(f'Incognito Mode Turned: {inc_state}')
-    print("\n")
-    
-#Developer info
-elif choice == "10":
-    print("Choose to go to the page:\n1. Official Termux App GitHub page\n2. Official Terumux app download page\n3. Script Developer's GitHub page\n4. Script bugs/errors/feedback reporting page\n")
-    i = input("Choice: ")
-    if i == "1":
-        os.system("termux-open-url https://github.com/termux/termux-app")
-    elif i == "2":
-        os.system("termux-open-url https://github.com/termux/termux-app/releases")
-    elif i == "3":
-        os.system("termux-open-url https://github.com/DrDelin/Youtube-Downloader-Android")
-    elif i == "4":
-        os.system("termux-open-url https://github.com/DrDelin/Youtube-Downloader-Android/issues")
-    else:
-         exit()
+    input(colored("\nPress Enter to continue...", 'grey'))
+    main_menu()
 
-else:
-    exit()
+if __name__ == "__main__":
+    try:
+        main_menu()
+    except KeyboardInterrupt:
+        print(colored("\nOperation cancelled by user", 'red'))
+        sys.exit(0)
+    except Exception as e:
+        print(colored(f"\nAn error occurred: {str(e)}", 'red'))
+        sys.exit(1)
