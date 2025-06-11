@@ -1,79 +1,128 @@
 import os
 import json
 import time
+from termcolor import colored  # Added to match main script
 
-history = "history.txt"
-temp = 'temp.txt'
+# File paths updated to match main script
+history = "/data/data/com.termux/files/home/history.txt"
+temp = '/data/data/com.termux/files/home/temp.txt'
+main_script = '/data/data/com.termux/files/home/main.py'  # Added main script path
 
 def history_mod():
     if not os.path.isfile(history):
-        print("History is Not Yet Created! or History got deleted!!\nDownload atleast once to create history and make sure Incognito Mode turned off!!\n")
+        print(colored("History is Not Yet Created! or History got deleted!!", 'red'))
+        print(colored("Download at least once to create history and make sure Incognito Mode is turned off!!\n", 'yellow'))
         exit()
+    
     start = time.time()
     histlist = []
-    with open(history, 'r+') as f:
-        for jsonObj in f:
-            Dict = json.loads(jsonObj)
-            histlist.append(Dict)
-    histlist2 = str(histlist).replace("'",'"')
-    histlist3 = histlist2.replace("\\","/")
-    input_dict = json.loads(histlist3)
-    print("\nHistory: \n")
-    for i in input_dict:
-        print(i["SNo"]+")", i["Name"]+"||", i["Site"])
-    end = time.time()
-    end = time.time()
-    print(f"\nListing time: {(end-start)*10**3:.02f}mS\n")
-    print("\nWhat to do!? \n")
-    print("Select 1 to redownload from history: \nSelect 2 to revisit the site of download: \nSelect 3 to clear history: \nSkip to close this script:\n")
-    choice = input("Your Choice:")
-    if choice=="1":
-        ask = input("\nEnter the SNo:")
-        output_dict = [a for a in input_dict if a["SNo"] == ask]
-        for j in output_dict:
-            print(j["SNo"]+")", j["Name"]+"||", j["Site"])
-            url = j["URL"]
-            print("\n")
-            os.system('python main.py "'+url+'"')
+    
+    try:
+        with open(history, 'r+', encoding='utf-8') as f:  # Added encoding
+            for jsonObj in f:
+                try:
+                    Dict = json.loads(jsonObj)
+                    histlist.append(Dict)
+                except json.JSONDecodeError:
+                    continue
+        
+        print("\n" + colored("History:", 'green') + "\n")
+        for i in histlist:
+            print(colored(i["SNo"]+")", 'cyan'), i["Name"]+" ||", colored(i["Site"], 'magenta'))
+        
+        end = time.time()
+        print(f"\nListing time: {(end-start)*10**3:.02f}ms\n")
+        
+        print(colored("\nWhat would you like to do?", 'yellow'))
+        print("1. Redownload from history")
+        print("2. Revisit the download site")
+        print("3. Clear history")
+        print(colored("Press Enter to exit", 'grey'))
+        
+        choice = input("\nYour choice: ").strip()
+        
+        if choice == "1":
+            ask = input("\nEnter the SNo: ").strip()
+            output_dict = [a for a in histlist if a["SNo"] == ask]
+            if not output_dict:
+                print(colored("Invalid selection!", 'red'))
+                exit()
+                
+            for j in output_dict:
+                print(colored("\nSelected:", 'green'))
+                print(j["SNo"]+")", j["Name"]+" ||", j["Site"])
+                url = j["URL"]
+                os.system(f'python {main_script} "{url}"')
+                exit()
+                
+        elif choice == "2":
+            ask = input("\nEnter the SNo: ").strip()
+            output_dict = [a for a in histlist if a["SNo"] == ask]
+            if not output_dict:
+                print(colored("Invalid selection!", 'red'))
+                exit()
+                
+            for j in output_dict:
+                url = j["URL"]
+                os.system(f'termux-open-url "{url}"')
+                exit()
+                
+        elif choice == "3":
+            confirm = input("\nType 'YES' to confirm clearing history: ").strip()
+            if confirm == "YES":
+                os.remove(history)
+                print(colored("History cleared successfully!", 'green'))
             exit()
-    elif choice=="2":
-        ask = input("\nEnter the SNo:")
-        output_dict = [a for a in input_dict if a["SNo"] == ask]
-        for j in output_dict:
-            url = j["URL"]
-            os.system('termux-open-url "' + url + '"')
-            exit()
-    elif choice=="3":
-        confirm = input("\nType YES to confirm clear history:\n")
-        if confirm=="YES":
-            os.remove(history)
-            exit()
-        else:
-            exit()
-    else:
+            
+    except Exception as e:
+        print(colored(f"\nError reading history: {str(e)}", 'red'))
         exit()
 
 def temp_mod():
-    temp_link = open(temp,'r').readlines()[0]
-    print("\nPreviously failed link:")
-    print("\n"+temp_link+"\n")
-    print("What to do:\n 1.To Resume or attempt redownload\n 2.To open the site with link\n >Skip to exit\n")
-    sel = input("Enter: ")
+    try:
+        with open(temp, 'r', encoding='utf-8') as f:  # Added encoding
+            temp_link = f.read().strip()
+            
+        print(colored("\nPreviously failed download link:", 'yellow'))
+        print(colored(temp_link, 'cyan') + "\n")
         
-    if sel == "1":
-        print("Attempting Redownload.....")
-        os.system('python main.py "'+temp_link+'"')
-    elif sel == "2":
-        print("Opening the link in browser or supported app.....")
-        os.system('termux-open-url "' +temp_link+ '"')
-    else:
-        print("Skipping....")
+        print(colored("What would you like to do?", 'yellow'))
+        print("1. Resume/retry download")
+        print("2. Open the link in browser")
+        print(colored("Press Enter to exit", 'grey'))
+        
+        sel = input("\nEnter your choice: ").strip()
+        
+        if sel == "1":
+            print(colored("\nAttempting redownload...", 'green'))
+            os.system(f'python {main_script} "{temp_link}"')
+        elif sel == "2":
+            print(colored("\nOpening link in browser...", 'green'))
+            os.system(f'termux-open-url "{temp_link}"')
+        else:
+            print(colored("Skipping...", 'grey'))
+            exit()
+            
+    except Exception as e:
+        print(colored(f"\nError reading temp file: {str(e)}", 'red'))
         exit()
 
-if os.path.isfile(temp):
-    if input("\n    Previously failed to download exists..Want to resume it(type 'y') or skip to view history: ") == "y":
-        temp_mod()
+# Main execution flow
+try:
+    if os.path.isfile(temp):
+        prompt = colored("\nA previously failed download exists. Resume it?", 'yellow')
+        prompt += colored("\nType 'y' to resume or any key to view history: ", 'grey')
+        
+        if input(prompt).strip().lower() == 'y':
+            temp_mod()
+        else:
+            history_mod()
     else:
         history_mod()
-else:
-    history_mod()
+        
+except KeyboardInterrupt:
+    print(colored("\nOperation cancelled by user", 'red'))
+    exit()
+except Exception as e:
+    print(colored(f"\nAn unexpected error occurred: {str(e)}", 'red'))
+    exit()
